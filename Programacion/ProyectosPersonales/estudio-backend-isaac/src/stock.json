@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "corte": "Matambre",
+    "precio": 25000,
+    "stockKilos": 0,
+    "categoria": "Ternera",
+    "imagen": "/img/1778472179074-Matambre-Corte-800x840.png"
+  },
+  {
+    "id": 2,
+    "corte": "Vacio",
+    "precio": 25000,
+    "stockKilos": 6,
+    "categoria": "Novillito",
+    "imagen": "/img/6-2-1024x771.jpg"
+  },
+  {
+    "id": 3,
+    "corte": "Bola de Lomo",
+    "precio": 19000,
+    "stockKilos": 32,
+    "categoria": "Ternera",
+    "imagen": "/img/1777265890940-Bola-de-Lomo-Raffe.jpg"
+  }
+]

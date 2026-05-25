@@ -1,0 +1,27 @@
+<div style="font-family: sans-serif; max-width: 450px; margin: 30px auto; padding: 25px; border: 3px solid #333; border-radius: 15px; background-color: #f8f9fa;">
+    <h2 style="color: #c9302c; text-align: center;">❄️ Control de Frío - Alfa y Omega</h2>
+    <hr>
+    
+    <form action="/api/products" method="POST" enctype="multipart/form-data">
+        <div style="margin-bottom: 20px;">
+            <label><b>Seleccionar Sector:</b></label><br>
+            <select name="title" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px;" required>
+                <option value="">-- Elegir Heladera --</option>
+                <option value="Heladera 1 - Cortes Vacunos">Heladera 1 - Cortes Vacunos</option>
+                <option value="Heladera 2 - Cerdo y Pollo">Heladera 2 - Cerdo y Pollo</option>
+                <option value="Heladera 3 - Achuras">Heladera 3 - Achuras</option>
+                <option value="Batea Principal - Mostrador">Batea Principal - Mostrador</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label><b>Foto del estado actual:</b></label><br>
+            <input type="file" name="thumbnail" accept="image/*" style="width: 100%; margin-top: 5px;" required>
+            <small style="color: #666;">(Subir foto nítida de la mercadería expuesta)</small>
+        </div>
+
+        <button type="submit" style="width: 100%; background: #d9534f; color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;">
+            Enviar Reporte de Estado 🚀
+        </button>
+    </form>
+</div>

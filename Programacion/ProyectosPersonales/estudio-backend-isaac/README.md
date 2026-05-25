@@ -1,18 +1,27 @@
-🥩 Proyecto Alfa y Omega - Backend I
-Este es el repositorio del proyecto Alfa y Omega, una aplicación de gestión de stock para carnicería. El objetivo de este entregable es demostrar la integración de un servidor Express con motores de plantillas, rutas modulares y gestión de archivos.
+🥩 Proyecto Alfa y Omega - Gestión de Stock en Tiempo Real
+Sistema de gestión para carnicerías desarrollado con Node.js, Express y Socket.io. Esta aplicación permite controlar el stock de cortes de carne y visualizar el balance de capital en tiempo real.
 
-🚀 Tecnologías y Conceptos Aplicados
-Express.js: Framework base para el servidor.
+🚀 Funcionalidades
+Visualización Dinámica: Listado de cortes con imágenes, precios y categorías.
 
-Handlebars (HBS): Motor de plantillas para renderizar vistas dinámicas (Layouts, Partials y Helpers).
+Venta en Tiempo Real: Las ventas descuentan stock instantáneamente en todos los dispositivos conectados sin necesidad de recargar la página.
 
-Express Router: Modularización de rutas para un código escalable y limpio.
+Balance Automático: Cálculo automático del capital total en mercadería (ARS) actualizado mediante WebSockets.
 
-Multer: Middleware para la carga y validación de imágenes de productos.
+Alertas de Stock: Indicadores visuales en color rojo y alertas de "Pedir más" cuando el stock es inferior a 5kg.
 
-Persistencia: Manejo de datos mediante archivos JSON (stock.json).
+🛠️ Tecnologías Utilizadas
+Backend: Node.js, Express.
 
-🛠️ Instalación y Configuración
+Frontend: Handlebars (Motores de plantillas), CSS3.
+
+Comunicación: Socket.io (WebSockets).
+
+Persistencia: Sistema de archivos (JSON) gestionado mediante clases (StockManager).
+
+Middleware: Multer (Manejo de imágenes).
+
+📦 Instalación y Ejecución
 Clonar el repositorio:
 
 Bash
@@ -20,21 +29,21 @@ git clone https://github.com/IsaacCarboni/estudio-backend-isaac.git
 Instalar dependencias:
 
 Bash
-   npm install
-💻 Cómo ejecutar el proyecto
-Para iniciar el servidor en modo desarrollo (usando nodemon o el script configurado):
+npm install
+Iniciar el servidor (Modo Desarrollo):
 
 Bash
-npm start
-El servidor corre por defecto en el puerto 8080 (o el que hayas configurado en app.js).
+npm run dev
+Acceso:
+Abrir en el navegador: http://localhost:8080
 
-🧪 Pruebas de Endpoints (Criterios de Aceptación)
-Vista Principal: Visitar http://localhost:8080/ para ver el listado de productos renderizado con Handlebars.
+📂 Estructura del Proyecto
+/src/app.js: Servidor principal y configuración de WebSockets.
 
-Carga de Archivos (Multer):
+/src/StockManager.js: Lógica de persistencia de datos.
 
-Ruta: POST /upload (o la ruta que definiste en tus routers).
+/src/routes/: Rutas de la API de stock.
 
-Campo (Key): image (asegurarse de que coincida con el nombre usado en upload.single()).
+/src/views/: Plantillas Handlebars para el frontend.
 
-Validación: El sistema verifica que el archivo sea una imagen y lo almacena en la carpeta public/img.
+/public/: Archivos estáticos (imágenes y scripts del cliente).

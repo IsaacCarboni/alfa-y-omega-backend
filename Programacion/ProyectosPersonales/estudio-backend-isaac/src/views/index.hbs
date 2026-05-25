@@ -1,30 +1,149 @@
-{{!-- 1. Abrimos el bucle usando el nombre que mandamos desde app.js --}}
+{{!-- PANEL DE CONTROL: Resumen general para el mostrador --}}
+<div style="background-color: #1a1a1a; padding: 20px; border-radius: 10px; border: 2px solid gold; margin-bottom: 25px; text-align: center;">
+    <h1 style="color: gold; margin-bottom: 10px;">📊 BALANCE DEL MOSTRADOR</h1>
+    
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px;">
+        <div style="background: #333; padding: 15px; border-radius: 8px; min-width: 200px;">
+            <h3 style="color: #ccc; margin: 0; font-size: 0.9rem;">Capital en Mercadería</h3>
+            <p id="total-balance" style="color: #28a745; font-size: 1.8rem; font-weight: bold; margin: 5px 0;">
+                {{valorTotalMostrador}}
+            </p>
+        </div>
+
+        <div style="background: #333; padding: 15px; border-radius: 8px; min-width: 200px;">
+            <h3 style="color: #ccc; margin: 0; font-size: 0.9rem;">Estado de Cámara</h3>
+            <p style="color: white; font-size: 1.2rem; margin: 5px 0;">
+                {{#if productos.length}}
+                    ✅ {{productos.length}} Cortes activos
+                {{else}}
+                    ❌ Sin stock cargado
+                {{/if}}
+            </p>
+        </div>
+    </div>
+</div>
+
+{{!-- LISTADO DE CORTES --}}
 {{#each productos}}
     <div style="border: 1px solid #444; padding: 15px; margin-bottom: 10px; border-radius: 8px; background-color: #222;">
         
-        {{!-- 2. Mostramos los datos usando los nombres EXACTOS del JSON --}}
         <h2 style="color: gold; margin: 0;">{{this.corte}}</h2>
+        
+        {{#if this.imagen}}
+        <div style="margin: 15px 0; text-align: center;">
+            <img src="{{this.imagen}}" alt="{{this.corte}}" style="width: 100%; max-width: 250px; height: auto; border-radius: 5px; border: 1px solid #444;">
+        </div>
+        {{/if}}
         
         <p style="font-size: 1.2rem; color: white;">
             Stock: 
-            {{!-- Usamos el helper 'lt' que registramos en app.js para el color --}}
-            <span style="color: {{#if (lt this.stockKilos 5)}}#ff4d4d{{else}}#28a745{{/if}}; font-weight: bold;">
+            {{!-- Usamos el helper 'lt' que tenés registrado en app.js para pintar de rojo en la carga inicial --}}
+            <span id="stock-{{this.id}}" style="color: {{#if (lt this.stockKilos 5)}}#ff4d4d{{else}}#28a745{{/if}}; font-weight: bold;">
                 {{this.stockKilos}} kg
             </span>
             
-            {{#if (lt this.stockKilos 5)}} 
-                <span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span> 
-            {{/if}}
+            <span id="aviso-{{this.id}}">
+                {{#if (lt this.stockKilos 5)}}
+                    <span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span>
+                {{/if}}
+            </span>
         </p>
 
         <p style="color: #ccc;">Precio: ${{this.precio}} /kg | Categoría: {{this.categoria}}</p>
 
-        {{!-- 3. El formulario de venta con el ID dinámico --}}
-        <form action="/api/stock/vender/{{this.id}}" method="POST">
-            <button type="submit" style="background: #28a745; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%;">
+        {{!-- Formulario de Venta sin recargar --}}
+        <form onsubmit="event.preventDefault(); venderProducto('{{this.id}}')">
+            <button type="submit" style="background: #28a745; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 8px;">
                 VENDER 1kg 🥩
             </button>
         </form>
+
+        {{!-- Botón de Eliminar --}}
+        <button onclick="eliminarProducto('{{this.id}}')" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 0.9rem;">
+            ELIMINAR CORTE ❌
+        </button>
     </div>
-{{/each}} 
-{{!-- 4. Cerramos el bucle --}}
+{{/each}}
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+
+    socket.on('connect', () => {
+        console.log('✅ Conectado al servidor de la carnicería');
+    });
+
+    // 1. FUNCIÓN PARA VENDER MERCADERÍA
+    async function venderProducto(id) {
+        console.log("🚀 BOTÓN APRETADO! Intentando vender producto ID:", id);
+        try {
+            const response = await fetch(`/api/stock/vender`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: id, cantidad: 1 })
+            });
+            
+            console.log("📡 Estado de la respuesta del servidor:", response.status);
+            
+            if (response.ok) {
+                console.log("✅ Venta procesada en el servidor");
+            } else {
+                console.error("❌ Error en la respuesta del servidor");
+            }
+        } catch (error) {
+            console.error("💥 Error en el fetch de venta:", error);
+        }
+    }
+
+    // 2. FUNCIÓN PARA ELIMINAR UN CORTE POR COMPLETO
+    async function eliminarProducto(id) {
+        if (!confirm("¿Estás seguro de que querés borrar este corte del sistema?")) return;
+
+        try {
+            const response = await fetch(`/api/stock/eliminar/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                console.log("Petición de eliminación enviada al backend");
+            } else {
+                console.error("Error al eliminar");
+            }
+        } catch (error) {
+            console.error("Error en el fetch de eliminación:", error);
+        }
+    }
+
+    // ==========================================
+    // 📢 ESCUCHAS DE SOCKET.IO (TIEMPO REAL)
+    // ==========================================
+    socket.on('actualizar-lista', (data) => {
+        console.log('📢 Socket recibió cambio de stock:', data);
+
+        const balanceElement = document.getElementById('total-balance');
+        if (balanceElement) balanceElement.innerText = data.nuevoBalance;
+
+        const stockElement = document.getElementById(`stock-${data.id}`);
+        if (stockElement) {
+            stockElement.innerText = `${data.nuevoStock} kg`;
+            stockElement.style.color = data.nuevoStock < 5 ? "#ff4d4d" : "#28a745";
+        }
+
+        const avisoElement = document.getElementById(`aviso-${data.id}`);
+        if (avisoElement) {
+            avisoElement.innerHTML = data.nuevoStock < 5 
+                ? '<span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span>' 
+                : '';
+        }
+    });
+
+    socket.on('producto-eliminado', (idEliminado) => {
+        const elementoStock = document.getElementById(`stock-${idEliminado}`);
+        if (elementoStock) {
+            const tarjetaProducto = elementoStock.closest('div'); 
+            if (tarjetaProducto) tarjetaProducto.remove(); 
+        }
+    });
+</script>

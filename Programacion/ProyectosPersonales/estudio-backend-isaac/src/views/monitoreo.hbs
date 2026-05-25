@@ -1,0 +1,19 @@
+<div style="display: flex; height: 100vh;">
+    <div style="width: 30%; border-right: 2px solid #333; padding: 20px;">
+        <h3 style="color: #ffd700;">📡 CONTROL IA</h3>
+        {{!-- Acá podrías poner un link al formulario de fotos --}}
+        <a href="/test-upload" style="color: white; text-decoration: none;">📸 Subir reporte de batea</a>
+    </div>
+
+    <div style="width: 70%; padding: 20px; overflow-y: auto;">
+        <h2 style="color: #ffd700;">Stock Actual - Batea</h2>
+        
+        {{#each productos}}
+        <div style="background: #1e1e1e; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 5px solid {{#if (lt this.stockKilos 5)}}#dc3545{{else}}#28a745{{/if}};">
+            <h3 style="margin: 0; color: white;">{{this.title}}</h3>
+            <p style="color: #ccc;">Stock: <b>{{this.stockKilos}}kg</b> {{#if (lt this.stockKilos 5)}}⚠️ ¡PEDIR MÁS!{{/if}}</p>
+            <p style="color: #aaa;">Precio: ${{this.price}} | Categoría: {{this.category}}</p>
+        </div>
+        {{/each}}
+    </div>
+</div>

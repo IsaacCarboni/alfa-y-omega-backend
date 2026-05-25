@@ -1,83 +1,120 @@
 import express from 'express';
+import { createServer } from 'http'; 
+import { Server } from 'socket.io'; 
 import { engine } from 'express-handlebars';
+import mongoose from 'mongoose';
+
+// --- IMPORTACIONES DE CAPAS ---
 import stockRouter from './routes/stock.routes.js';
 import StockManager from './StockManager.js';
+import { productModel } from './models/productModel.js';
 import { uploader } from './middlewares/multer.js';
 
 const app = express();
-const PORT = 8080;
-const manager = new StockManager('./stock.json');
+const httpServer = createServer(app); 
+const io = new Server(httpServer); 
+// Esto le comparte el control de los Sockets a tus archivos de rutas
+app.set('socketio', io);
 
-// --- CONFIGURACIÓN DE HANDLEBARS CON HELPERS ---
+const PORT = 8080;
+const manager = new StockManager('./src/stock.json');
+
+// --- 1. CONEXIÓN A BASE DE DATOS (Nube) ---
+const MONGO_URI = 'mongodb://isaacefrain95_db_user:Carnicero2026@cluster0-shard-00-00.c70y6tn.mongodb.net:27017/alfa_y_omega?authSource=admin&ssl=true';
+
+/* mongoose.connect(MONGO_URI)
+    .then(() => {
+        console.log("✅ ¡Conectado con éxito a MongoDB Atlas!");
+        testProduct(); 
+    })
+    .catch(error => console.error("❌ Error de conexión:", error.message));
+*/
+
+const testProduct = async () => {
+    try {
+        await productModel.create({
+            title: "Costillar de Ternera",
+            description: "Corte premium para asado",
+            price: 8500,
+            stockKilos: 25,
+            category: "Vacuno"
+        });
+        console.log("✅ ¡COSTILLAR GUARDADO EN LA NUBE!");
+    } catch (error) {
+        console.error("❌ Falló el test de guardado:", error.message);
+    }
+};
+
+// --- 2. CONFIGURACIONES Y MIDDLEWARES ---
 app.engine('hbs', engine({ 
     extname: '.hbs', 
     defaultLayout: 'main',
-    helpers: {
-        // Este helper permite comparar el stock en la vista (ej: si es menor a 5)
-        lt: (a, b) => a < b 
-    }
+    helpers: { lt: (a, b) => a < b } 
 }));
 app.set('view engine', 'hbs');
-app.set('views', './src/views'); 
+app.set('views', './src/views');
 
-// --- MIDDLEWARES ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); 
-app.use(express.static('public')); 
+app.use(express.static('./src/public')); 
 
-// --- RUTAS DE VISTAS ---
+// --- 3. SOCKETS (Tiempo Real) ---
+io.on('connection', (socket) => {
+    console.log('✅ Dispositivo conectado:', socket.id);
+});
+
+// --- 4. RUTAS DE VISTAS (Navegación) ---
+
 app.get('/', async (req, res) => {
     try {
+        // 1. Traemos los productos actualizados
         const productos = await manager.getStock();
         
-        // Calculamos el valor total de la mercadería en el mostrador
-        // Usamos stockKilos para que el cálculo no dé error
-const totalPesos = productos.reduce((acc, prod) => acc + (prod.precio * (prod.stockKilos || 0)), 0);
+        // 2. Usamos el método blindado de tu StockManager
+        const infoBalance = await manager.getBalance();
+        
+        // 3. Extraemos el total de pesos con un salvavidas por las dudas
+        const totalPesos = Number(infoBalance.valor_total_inventario) || 0;
+
+        // 4. Le damos formato de moneda local de forma segura
+        const valorTotalFormateado = new Intl.NumberFormat('es-AR', {
+            style: 'currency',
+            currency: 'ARS'
+        }).format(totalPesos);
+
+        // 5. Renderizamos la plantilla pasando las variables correctas
         res.render('index', { 
-            productos,
-            // Lo formateamos como moneda argentina para que tu viejo lo entienda de una
-            valorTotalMostrador: totalPesos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+            productos: productos, 
+            valorTotalMostrador: valorTotalFormateado 
         });
+
     } catch (error) {
-        res.status(500).send("Error al cargar el mostrador");
+        console.error("❌ Error al cargar la vista del mostrador:", error);
+        res.status(500).send("Error interno en el servidor de la carnicería");
     }
 });
 
-app.post('/api/stock/vender/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        // Buscamos el producto. Usamos parseInt para asegurar que el ID sea número.
-        const producto = await manager.getProductById(parseInt(id));
+// --- 5. RUTAS DE API (Lógica y Archivos) ---
 
-        // IMPORTANTE: Usamos stockKilos que es como figura en tu JSON
-        if (producto && producto.stockKilos > 0) {
-            const nuevoStock = producto.stockKilos - 1;
-            
-            // Actualizamos usando el nombre correcto de la propiedad
-            await manager.updateProduct(parseInt(id), { stockKilos: nuevoStock });
-            
-            console.log(`✅ Venta exitosa: 1kg de ${producto.corte}`);
-            res.redirect('/'); 
-        } else {
-            res.status(400).send("No hay stock o el producto no existe");
-        }
-    } catch (error) {
-        console.error("Error detallado:", error); // Esto te va a decir en la consola qué falló exactamente
-        res.status(500).send("Error al procesar la venta");
+app.post('/api/products', uploader.single('thumbnail'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).send({ status: "error", error: "Falta la foto" });
     }
-});
-
-// --- RUTA PARA SUBIR FOTOS ---
-app.post('/api/productos/imagen', uploader.single('thumbnail'), (req, res) => {
-    try {
-        if (!req.file) return res.status(400).send("No se seleccionó ninguna imagen.");
-        console.log("📸 Foto guardada:", req.file.filename);
-        res.redirect('/'); 
-    } catch (error) {
-        res.status(500).send("Error al subir la foto");
-    }
+    const sectorReportado = req.body.title;
+    console.log(`📸 Nuevo reporte de: ${sectorReportado} | Archivo: ${req.file.filename}`);
+    
+    res.send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 40px;">
+            <h1 style="color: green;">✅ Reporte Recibido</h1>
+            <p>Se registró el estado de: <b>${sectorReportado}</b></p>
+            <a href="/test-upload">Hacer otro reporte</a>
+        </div>
+    `);
 });
 
 app.use('/api/stock', stockRouter);
 
-app.listen(PORT, () => console.log(`🚀 Alfa y Omega Online - Puerto ${PORT}`));
+// --- 6. ARRANQUE DEL MOTOR ---
+httpServer.listen(8080, '0.0.0.0', () => {
+    console.log('🚀 Servidor Alfa y Omega corriendo en red local');
+});
