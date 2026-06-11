@@ -1,0 +1,93 @@
+<div style="background-color: #1a1a1a; padding: 20px; border-radius: 10px; border: 2px solid gold; margin-bottom: 25px; text-align: center; font-family: sans-serif;">
+    <h1 style="color: gold; margin-bottom: 5px;">🛒 TU CARRITO DE COMPRAS</h1>
+    <p style="color: #ccc; margin: 0; font-size: 0.9rem;">ID del Carrito: <span style="color: gold; font-weight: bold;">{{cartId}}</span></p>
+</div>
+
+<div style="margin-bottom: 20px; font-family: sans-serif;">
+    <a href="/" style="color: gold; text-decoration: none; font-weight: bold; font-size: 1rem;">◄ Volver al Mostrador Principal</a>
+</div>
+
+<div style="font-family: sans-serif;">
+    {{#if productosEnCarrito.length}}
+        {{#each productosEnCarrito}}
+            <div style="border: 1px solid #444; padding: 15px; margin-bottom: 15px; border-radius: 8px; background-color: #222; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                
+                <div>
+                    <h2 style="color: gold; margin: 0 0 5px 0;">{{this.product.title}}</h2>
+                    <p style="color: #ccc; margin: 0;">Precio por kg: <b>${{this.product.price}}</b></p>
+                    <p style="color: #aaa; margin: 5px 0 0 0; font-size: 0.85rem;">Categoría: {{this.product.category}}</p>
+                </div>
+
+                <div style="text-align: right; min-width: 150px;">
+                    <p style="font-size: 1.3rem; color: white; margin: 0 0 10px 0;">
+                        Cantidad: <span style="color: #28a745; font-weight: bold;">{{this.quantity}} kg</span>
+                    </p>
+                    <button onclick="quitarDelCarrito('{{../cartId}}', '{{this.product._id}}')" style="background: #dc3545; color: white; padding: 8px 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
+                        Quitar ❌
+                    </button>
+                </div>
+
+            </div>
+        {{/each}}
+
+        <div style="text-align: right; margin-top: 25px;">
+            <button onclick="vaciarCarrito('{{cartId}}')" style="background: #be185d; color: white; padding: 12px 25px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem; width: 100%; max-width: 250px;">
+                🧹 VACIAR CARRITO COMPLETO
+            </button>
+        </div>
+
+    {{else}}
+        <div style="background-color: #222; border: 1px dashed #444; padding: 40px; text-align: center; border-radius: 8px; color: #aaa;">
+            <p style="font-size: 1.2rem; margin: 0 0 15px 0;">Tu carrito está completamente vacío.</p>
+            <a href="/" style="background-color: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ir a buscar cortes de carne 🥩
+            </a>
+        </div>
+    {{/if}}
+</div>
+
+<script>
+    // 1. FUNCIÓN PARA ELIMINAR UN PRODUCTO ESPECÍFICO
+    async function quitarDelCarrito(cartId, productId) {
+        if (!confirm("¿Querés quitar este producto del carrito?")) return;
+
+        try {
+            const response = await fetch(`/api/carts/${cartId}/products/${productId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === "success") {
+                alert("Producto eliminado del carrito");
+                location.reload(); // Refrescamos la pantalla para ver el cambio
+            } else {
+                alert("Error: " + (data.message || "No se pudo quitar"));
+            }
+        } catch (error) {
+            console.error("💥 Error en fetch al quitar producto:", error);
+        }
+    }
+
+    // 2. FUNCIÓN PARA VACIAR TODO EL CARRITO
+    async function vaciarCarrito(cartId) {
+        if (!confirm("¿Estás seguro de que querés vaciar todo el carrito? Se perderán todos los cortes.")) return;
+
+        try {
+            const response = await fetch(`/api/carts/${cartId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === "success") {
+                alert("Carrito vaciado con éxito");
+                location.reload();
+            } else {
+                alert("Error: " + (data.message || "No se pudo vaciar"));
+            }
+        } catch (error) {
+            console.error("💥 Error en fetch al vaciar carrito:", error);
+        }
+    }
+</script>

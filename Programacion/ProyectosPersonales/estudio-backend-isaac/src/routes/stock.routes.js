@@ -1,126 +1,214 @@
 import express from 'express';
 const router = express.Router();
 
-// Importamos tu StockManager limpio
-import StockManager from '../StockManager.js';
-const manager = new StockManager('./src/stock.json');
+// ✅ SUMAMOS EL MÁNAGER DE MONGO
+import StockManagerMongo from '../dao/StockManagerMongo.js';
+import { productModel } from '../models/productModel.js';
+const manager = new StockManagerMongo();
 
 // ==========================================
-// 🥩 1. RUTA PARA VENDER 1KG
+// 📦 1. GET /api/products (Paginados, ordenados y filtrados)
+// ==========================================
+router.get('/', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const page = parseInt(req.query.page) || 1;
+        const sort = req.query.sort; 
+        const query = req.query.query; 
+
+        const options = {
+            limit,
+            page,
+            lean: true 
+        };
+
+        if (sort === 'asc') options.sort = { price: 1 };
+        if (sort === 'desc') options.sort = { price: -1 };
+
+        const filter = {};
+        if (query) {
+            filter.category = query;
+        }
+
+        const result = await manager.getProductsPaginados(filter, options);
+
+        if (!result) {
+            return res.status(500).json({ status: "error", message: "No se pudieron obtener los productos" });
+        }
+
+        const baseUrl = `${req.protocol}://${req.get('host')}${req.baseUrl}`;
+        const prevLink = result.hasPrevPage ? `${baseUrl}?page=${result.prevPage}&limit=${limit}${sort ? `&sort=${sort}` : ''}${query ? `&query=${query}` : ''}` : null;
+        const nextLink = result.hasNextPage ? `${baseUrl}?page=${result.nextPage}&limit=${limit}${sort ? `&sort=${sort}` : ''}${query ? `&query=${query}` : ''}` : null;
+
+        return res.json({
+            status: "success",
+            payload: result.docs, 
+            totalPages: result.totalPages,
+            prevPage: result.prevPage,
+            nextPage: result.nextPage,
+            page: result.page,
+            hasPrevPage: result.hasPrevPage,
+            hasNextPage: result.hasNextPage,
+            prevLink,
+            nextLink
+        });
+
+    } catch (error) {
+        console.error("❌ Error en GET de productos paginados:", error);
+        return res.status(500).json({ status: "error", message: "Error interno al paginar productos" });
+    }
+});
+
+// ==========================================
+// 🎯 2. GET /api/products/:pid (Obtener producto por ID - REQUERIDO)
+// ==========================================
+router.get('/:pid', async (req, res) => {
+    try {
+        const { pid } = req.params;
+        const producto = await productModel.findById(pid).lean();
+        if (!producto) {
+            return res.status(404).json({ status: "error", message: "Producto no encontrado" });
+        }
+        return res.json({ status: "success", payload: producto });
+    } catch (error) {
+        return res.status(500).json({ status: "error", message: "Error al buscar el producto" });
+    }
+});
+
+// ==========================================
+// 🚀 3. POST /api/products (Crear producto normal - REQUERIDO)
+// ==========================================
+router.post('/', async (req, res) => {
+    try {
+        const { title, description, code, price, status, stock, category, thumbnails } = req.body;
+        
+        // Validamos campos mínimos obligatorios
+        if (!title || !price || !stock || !category) {
+            return res.status(400).json({ status: "error", message: "Faltan campos obligatorios" });
+        }
+
+        const resultado = await manager.addProduct({ 
+            title, 
+            price: Number(price), 
+            stock: Number(stock), 
+            category,
+            retailPrice: Number(price) * 2 // O la lógica de batea que manejes
+        });
+
+        const io = req.app.get('socketio');
+        if (io) io.emit('actualizar-lista', {}); 
+
+        return res.status(201).json({ status: "success", message: "Producto creado con éxito" });
+    } catch (error) {
+        return res.status(500).json({ status: "error", message: "Error interno al crear producto" });
+    }
+});
+
+// ==========================================
+// ✏️ 4. PUT /api/products/:pid (Actualizar producto existente - REQUERIDO)
+// ==========================================
+router.put('/:pid', async (req, res) => {
+    try {
+        const { pid } = req.params;
+        const datosActualizar = req.body;
+
+        // Evitamos que se pueda alterar el ID de Mongo por seguridad
+        if (datosActualizar._id) delete datosActualizar._id;
+
+        const productoActualizado = await productModel.findByIdAndUpdate(pid, datosActualizar, { new: true });
+        
+        if (!productoActualizado) {
+            return res.status(404).json({ status: "error", message: "Producto no encontrado para actualizar" });
+        }
+
+        const io = req.app.get('socketio');
+        if (io) io.emit('actualizar-lista', {});
+
+        return res.json({ status: "success", payload: productoActualizado });
+    } catch (error) {
+        return res.status(500).json({ status: "error", message: "Error al actualizar producto" });
+    }
+});
+
+// ==========================================
+// 🗑️ 5. DELETE /api/products/:pid (Eliminar por parámetro limpio - REQUERIDO)
+// ==========================================
+router.delete('/:pid', async (req, res) => {
+    try {
+        const { pid } = req.params; 
+        const resultado = await manager.deleteProduct(pid);
+
+        if (!resultado.success) {
+            return res.status(404).json({ status: "error", message: resultado.message });
+        }
+
+        const io = req.app.get('socketio');
+        if (io) {
+            io.emit('producto-eliminado', pid); 
+            io.emit('actualizar-lista', {}); 
+        }
+
+        return res.json({ status: "success", message: "Producto eliminado correctamente" });
+    } catch (error) {
+        return res.status(500).json({ status: "error", message: "Error al eliminar" });
+    }
+});
+
+// ==========================================
+// 🥩 VISTAS ADICIONALES / OPERACIONES EN TIEMPO REAL 
 // ==========================================
 router.post('/vender', async (req, res) => {
     try {
         const { id } = req.body;
-        const idNumero = Number(id);
-
-        // Descontamos 1 kg usando tu método
-        const resultado = await manager.sellProduct(idNumero, 1);
+        const resultado = await manager.sellProduct(id, 1);
 
         if (!resultado.success) {
             return res.status(400).json({ status: "error", message: resultado.message });
         }
 
         const productoActualizado = resultado.product;
-
-        // Pedimos el balance a tu clase blindada
         const infoBalance = await manager.getBalance();
-        
-        // RED DE SEGURIDAD FRENTE AL NAN:
-        const totalPesos = Number(infoBalance.valor_total_inventario) || 0;
-        console.log("💰 Dinero real emitido por Socket:", totalPesos);
+        const totalPesos = Number(infoBalance?.valor_total_inventario) || 0;
 
-        // Formateamos la moneda local
         const nuevoBalanceFormateado = new Intl.NumberFormat('es-AR', {
             style: 'currency',
             currency: 'ARS'
         }).format(totalPesos); 
 
-        // Enviamos los datos exactos que tu script de hbs espera recibir
         const io = req.app.get('socketio');
         if (io) {
             io.emit('actualizar-lista', {
-                id: String(id), 
-                nuevoStock: productoActualizado.stockKilos,
+                id: id, 
+                nuevoStock: productoActualizado.stock, 
                 nuevoBalance: nuevoBalanceFormateado
             });
-            console.log("📢 Evento enviado en tiempo real con éxito");
         }
 
-        return res.status(200).json({ status: "success", nuevoStock: productoActualizado.stockKilos });
-
+        return res.status(200).json({ status: "success", nuevoStock: productoActualizado.stock });
     } catch (error) {
-        console.error("❌ Error crítico en ruta de ventas:", error);
         return res.status(500).json({ status: "error", message: "Error interno" });
     }
 });
 
-// ==========================================
-// 🗑️ 2. RUTA PARA ELIMINAR UN CORTE COMPLETO
-// ==========================================
-router.delete('/eliminar/:id', async (req, res) => {
-    try {
-        const idNumero = Number(req.params.id);
-        console.log(`🗑️ Backend recibió orden para eliminar ID: ${idNumero}`);
-
-        const resultado = await manager.deleteProduct(idNumero);
-
-        if (!resultado.success) {
-            return res.status(400).json({ status: "error", message: resultado.message });
-        }
-
-        const infoBalance = await manager.getBalance();
-        const totalPesos = Number(infoBalance.valor_total_inventario) || 0;
-
-        const nuevoBalanceFormateado = new Intl.NumberFormat('es-AR', {
-            style: 'currency',
-            currency: 'ARS'
-        }).format(totalPesos);
-
-        const io = req.app.get('socketio');
-        if (io) {
-            io.emit('producto-eliminado', idNumero);
-            io.emit('actualizar-lista', {
-                nuevoBalance: nuevoBalanceFormateado
-            });
-            console.log("📢 Eliminación informada a todas las pantallas por Socket.io");
-        }
-
-        return res.status(200).json({ status: "success", message: "Corte borrado con éxito" });
-
-    } catch (error) {
-        console.error("❌ Error crítico en la ruta de eliminación:", error);
-        return res.status(500).json({ status: "error", message: "Error interno al intentar eliminar" });
-    }
-});
-
-// ==========================================
-// ➕ 3. RUTA PARA CREAR/AGREGAR UN NUEVO CORTE
-// ==========================================
 router.post('/agregar', async (req, res) => {
     try {
-        // 🛠️ EXPLICACIÓN: Atrapamos las variables que el usuario escribió en los inputs del formulario HTML
-        const { title, price, stockKilos, category } = req.body;
-        
-        // 🛠️ EXPLICACIÓN: Le pasamos los datos limpios al mánager para que cree el objeto e incremente el ID solo en el JSON
-        const resultado = await manager.addProduct({ title, price, stockKilos, category });
+        const { title, price, stock, category } = req.body;
+        const resultado = await manager.addProduct({ 
+            title, 
+            price: Number(price), 
+            stock: Number(stock), 
+            category 
+        });
 
         if (!resultado.success) {
             return res.status(400).json({ status: "error", message: "No se pudo agregar" });
         }
 
-        // 🛠️ EXPLICACIÓN: Usamos Socket para avisar a los navegadores abiertos. Al pasar un objeto vacío `{}`,
-        // se activa el 'if (!data || !data.id)' que metimos en tu index.hbs y fuerza la recarga automática.
         const io = req.app.get('socketio');
-        if (io) {
-            io.emit('actualizar-lista', {}); 
-            console.log("📢 Alerta de nuevo corte emitida por Socket");
-        }
+        if (io) io.emit('actualizar-lista', {}); 
 
-        // 🛠️ EXPLICACIÓN: Una vez guardado, en vez de devolver un JSON frío, redireccionamos al usuario a la raíz '/'
-        // haciendo que la pantalla se actualice al instante con la nueva tarjeta de carne en la lista.
         return res.redirect('/');
     } catch (error) {
-        console.error("❌ Error en ruta agregar:", error);
         return res.status(500).json({ status: "error", message: "Error interno" });
     }
 });

@@ -2,50 +2,109 @@ import express from 'express';
 import { createServer } from 'http'; 
 import { Server } from 'socket.io'; 
 import { engine } from 'express-handlebars';
-import mongoose from 'mongoose';
-
-// --- IMPORTACIONES DE CAPAS ---
+import mongoose from 'mongoose'; 
 import stockRouter from './routes/stock.routes.js';
-import StockManager from './StockManager.js';
-import { productModel } from './models/productModel.js';
+import StockManagerMongo from './dao/StockManagerMongo.js';
 import { uploader } from './middlewares/multer.js';
+import cartRouter from './routes/cart.routes.js';
+import viewsRouter from './routes/views.routes.js';
+
+// 🥩 IMPORTAMOS LOS MODELOS Y MÁNAGERS
+import { productModel } from './models/productModel.js';
+import CartManagerMongo from './dao/CartManagerMongo.js';
 
 const app = express();
 const httpServer = createServer(app); 
 const io = new Server(httpServer); 
-// Esto le comparte el control de los Sockets a tus archivos de rutas
+
 app.set('socketio', io);
 
 const PORT = 8080;
-const manager = new StockManager('./src/stock.json');
+const manager = new StockManagerMongo();
 
-// --- 1. CONEXIÓN A BASE DE DATOS (Nube) ---
-const MONGO_URI = 'mongodb://isaacefrain95_db_user:Carnicero2026@cluster0-shard-00-00.c70y6tn.mongodb.net:27017/alfa_y_omega?authSource=admin&ssl=true';
+// ==========================================
+// 🎲 CONEXIÓN A MONGO LOCAL Y TESTEO BLINDADO
+// ==========================================
+const mongoURI = 'mongodb://127.0.0.1:27017/ecommerce';
 
-/* mongoose.connect(MONGO_URI)
-    .then(() => {
-        console.log("✅ ¡Conectado con éxito a MongoDB Atlas!");
-        testProduct(); 
+mongoose.connect(mongoURI)
+    .then(async () => {
+        console.log('📦 Conexión exitosa a MONGODB LOCAL');
+
+        const cartManager = new CartManagerMongo(); 
+
+        // A. SEMILLA DE CORTES (Con costos de abastecedor, precios reales de Córdoba y FOTOS REALES)
+        try {
+            // Si hay menos de 3 cortes, reseteamos para volver a llenar el mostrador
+            const cantidad = await productModel.countDocuments();
+            if (cantidad < 3) {
+                await productModel.deleteMany({}); // Limpiamos residuos
+                await productModel.create([
+                    { 
+                        title: "Matambre", 
+                        price: 11000,        
+                        retailPrice: 25000,  
+                        stock: 15, 
+                        category: "Ternera",
+                        thumbnail: "img/1778472179074-Matambre-Corte-800x840.png" 
+                    },
+                    { 
+                        title: "Vacío", 
+                        price: 11000,        
+                        retailPrice: 25000,  
+                        stock: 40, 
+                        category: "Ternera",
+                        thumbnail: "img/6-2-1024x771.jpg" 
+                    },
+                    { 
+                        title: "Costilla", 
+                        price: 11000,        
+                        retailPrice: 23000,  
+                        stock: 50, 
+                        category: "Ternera",
+                        thumbnail: "img/OIP.jpg" 
+                    }
+                ]);
+                console.log("🥩 ¡Gancheras recargadas automáticamente con de fotos reales y precios de mostrador!");
+            }
+        } catch (errCortes) {
+            console.error("⚠️ Error al cargar cortes iniciales:", errCortes.message);
+        }
+
+        // B. TESTEO SEGURO DEL CARRITO
+        try {
+            console.log("🛒 Iniciando prueba de persistencia de carritos...");
+            const nuevoCarro = await cartManager.createCart();
+            
+            if (nuevoCarro && nuevoCarro.cart) {
+                const cartId = nuevoCarro.cart._id.toString();
+                console.log(`✨ Carrito creado con ID: ${cartId}`);
+
+                const unCorte = await productModel.findOne({ title: "Vacío" });
+                if (unCorte) {
+                    const productId = unCorte._id.toString();
+                    
+                    // Metemos kilos de prueba
+                    await cartManager.addProductToCart(cartId, productId);
+                    await cartManager.addProductToCart(cartId, productId);
+                    console.log(`|-> Se sumaron 2 kg de ${unCorte.title} al carro.`);
+
+                    // Traemos con Populate
+                    const carroCompleto = await cartManager.getCartById(cartId);
+                    console.log("📊 CONTENIDO DEL CARRITO CON POPULATE:");
+                    console.log(JSON.stringify(carroCompleto, null, 2));
+                }
+            }
+        } catch (errCarrito) {
+            console.error("⚠️ Nota de testeo:", errCarrito.message);
+        }
+
     })
-    .catch(error => console.error("❌ Error de conexión:", error.message));
-*/
+    .catch(err => console.error('❌ Error al conectar a MongoDB:', err));
 
-const testProduct = async () => {
-    try {
-        await productModel.create({
-            title: "Costillar de Ternera",
-            description: "Corte premium para asado",
-            price: 8500,
-            stockKilos: 25,
-            category: "Vacuno"
-        });
-        console.log("✅ ¡COSTILLAR GUARDADO EN LA NUBE!");
-    } catch (error) {
-        console.error("❌ Falló el test de guardado:", error.message);
-    }
-};
-
-// --- 2. CONFIGURACIONES Y MIDDLEWARES ---
+// ==========================================
+// 📺 CONFIGURACIÓN DE ENGINE (HANDLEBARS)
+// ==========================================
 app.engine('hbs', engine({ 
     extname: '.hbs', 
     defaultLayout: 'main',
@@ -54,48 +113,23 @@ app.engine('hbs', engine({
 app.set('view engine', 'hbs');
 app.set('views', './src/views');
 
+// ==========================================
+// ⚙️ MIDDLEWARES GENERALES
+// ==========================================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); 
 app.use(express.static('./src/public')); 
 
-// --- 3. SOCKETS (Tiempo Real) ---
+// ==========================================
+// 📢 CONTROL DE CONEXIÓN WEBSOCKETS
+// ==========================================
 io.on('connection', (socket) => {
-    console.log('✅ Dispositivo conectado:', socket.id);
+    console.log('✅ Dispositivo conectado al mostrador:', socket.id);
 });
 
-// --- 4. RUTAS DE VISTAS (Navegación) ---
-
-app.get('/', async (req, res) => {
-    try {
-        // 1. Traemos los productos actualizados
-        const productos = await manager.getStock();
-        
-        // 2. Usamos el método blindado de tu StockManager
-        const infoBalance = await manager.getBalance();
-        
-        // 3. Extraemos el total de pesos con un salvavidas por las dudas
-        const totalPesos = Number(infoBalance.valor_total_inventario) || 0;
-
-        // 4. Le damos formato de moneda local de forma segura
-        const valorTotalFormateado = new Intl.NumberFormat('es-AR', {
-            style: 'currency',
-            currency: 'ARS'
-        }).format(totalPesos);
-
-        // 5. Renderizamos la plantilla pasando las variables correctas
-        res.render('index', { 
-            productos: productos, 
-            valorTotalMostrador: valorTotalFormateado 
-        });
-
-    } catch (error) {
-        console.error("❌ Error al cargar la vista del mostrador:", error);
-        res.status(500).send("Error interno en el servidor de la carnicería");
-    }
-});
-
-// --- 5. RUTAS DE API (Lógica y Archivos) ---
-
+// ==========================================
+// 📸 CONTROL DE ARCHIVOS (MULTER)
+// ==========================================
 app.post('/api/products', uploader.single('thumbnail'), (req, res) => {
     if (!req.file) {
         return res.status(400).send({ status: "error", error: "Falta la foto" });
@@ -112,9 +146,16 @@ app.post('/api/products', uploader.single('thumbnail'), (req, res) => {
     `);
 });
 
+// ==========================================
+// 🛣️ ENRUTADORES GENERALES Y API
+// ==========================================
+app.use('/', viewsRouter);         
 app.use('/api/stock', stockRouter);
+app.use('/api/carts', cartRouter);
 
-// --- 6. ARRANQUE DEL MOTOR ---
-httpServer.listen(8080, '0.0.0.0', () => {
-    console.log('🚀 Servidor Alfa y Omega corriendo en red local');
+// ==========================================
+// 🚀 INICIO DEL SERVIDOR
+// ==========================================
+httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor Alfa y Omega corriendo en puerto ${PORT} (Red Local habilitada)`);
 });

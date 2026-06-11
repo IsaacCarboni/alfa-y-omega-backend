@@ -1,10 +1,9 @@
-{{!-- PANEL DE CONTROL: Resumen general para el mostrador --}}
-<div style="background-color: #1a1a1a; padding: 20px; border-radius: 10px; border: 2px solid gold; margin-bottom: 25px; text-align: center;">
+<div style="background-color: #1a1a1a; padding: 20px; border-radius: 10px; border: 2px solid gold; margin-bottom: 25px; text-align: center; font-family: sans-serif;">
     <h1 style="color: gold; margin-bottom: 10px;">📊 BALANCE DEL MOSTRADOR</h1>
     
     <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px;">
         <div style="background: #333; padding: 15px; border-radius: 8px; min-width: 200px;">
-            <h3 style="color: #ccc; margin: 0; font-size: 0.9rem;">Capital en Mercadería</h3>
+            <h3 style="color: #ccc; margin: 0; font-size: 0.9rem;">Capital en Mercadería (Costo)</h3>
             <p id="total-balance" style="color: #28a745; font-size: 1.8rem; font-weight: bold; margin: 5px 0;">
                 {{valorTotalMostrador}}
             </p>
@@ -21,107 +20,165 @@
             </p>
         </div>
     </div>
+    
+    <div style="margin-top: 15px;">
+        <button onclick="irAlCarrito()" style="background: #ffc107; color: #000; padding: 10px 25px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem;">
+            🛒 VER MI CARRITO ACTIVO
+        </button>
+    </div>
 </div>
 
-{{!-- LISTADO DE CORTES --}}
 {{#each productos}}
-    <div style="border: 1px solid #444; padding: 15px; margin-bottom: 10px; border-radius: 8px; background-color: #222;">
+    <div style="border: 1px solid #444; padding: 15px; margin-bottom: 15px; border-radius: 8px; background-color: #222; font-family: sans-serif;">
         
-        <h2 style="color: gold; margin: 0;">{{this.corte}}</h2>
+        <h2 style="color: gold; margin: 0;">{{this.title}}</h2>
         
-        {{#if this.imagen}}
+        {{#if this.thumbnail}}
         <div style="margin: 15px 0; text-align: center;">
-            <img src="{{this.imagen}}" alt="{{this.corte}}" style="width: 100%; max-width: 250px; height: auto; border-radius: 5px; border: 1px solid #444;">
+            <img src="{{this.thumbnail}}" alt="{{this.title}}" style="width: 100%; max-width: 250px; height: auto; border-radius: 5px; border: 1px solid #444;">
         </div>
         {{/if}}
         
-        <p style="font-size: 1.2rem; color: white;">
+        <p style="font-size: 1.2rem; color: white; margin-bottom: 5px;">
             Stock: 
-            {{!-- Usamos el helper 'lt' que tenés registrado en app.js para pintar de rojo en la carga inicial --}}
-            <span id="stock-{{this.id}}" style="color: {{#if (lt this.stockKilos 5)}}#ff4d4d{{else}}#28a745{{/if}}; font-weight: bold;">
-                {{this.stockKilos}} kg
+            <span id="stock-{{this._id}}" style="color: {{#if (lt this.stock 5)}}#ff4d4d{{else}}#28a745{{/if}}; font-weight: bold;">
+                {{this.stock}} kg
             </span>
             
-            <span id="aviso-{{this.id}}">
-                {{#if (lt this.stockKilos 5)}}
+            <span id="aviso-{{this._id}}">
+                {{#if (lt this.stock 5)}}
                     <span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span>
                 {{/if}}
             </span>
         </p>
 
-        <p style="color: #ccc;">Precio: ${{this.precio}} /kg | Categoría: {{this.categoria}}</p>
+        <p style="color: #ffcc00; font-size: 1.3rem; font-weight: bold; margin: 5px 0;">
+            Precio al Público: ${{this.retailPrice}} /kg
+        </p>
+        <p style="color: #aaa; font-size: 0.9rem; margin-top: 0;">
+            Costo Base: ${{this.price}} /kg | Categoría: {{this.category}}
+        </p>
 
-        {{!-- Formulario de Venta sin recargar --}}
-        <form onsubmit="event.preventDefault(); venderProducto('{{this.id}}')">
-            <button type="submit" style="background: #28a745; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 8px;">
-                VENDER 1kg 🥩
-            </button>
-        </form>
+        <div id="btn-container-{{this._id}}">
+            {{#if (lt this.stock 1)}}
+                <button type="button" disabled style="background: #555; color: #aaa; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: not-allowed; width: 100%; margin-bottom: 8px;">
+                    ❌ SIN STOCK DISPONIBLE
+                </button>
+            {{else}}
+                <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                    <button onclick="venderProducto('{{this._id}}')" style="background: #28a745; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; flex: 1;">
+                        VENDER 1kg 🥩
+                    </button>
+                    
+                    <button onclick="agregarAlCarrito('{{this._id}}')" style="background: #007bff; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; flex: 1;">
+                        AÑADIR AL CARRITO 🛒
+                    </button>
+                </div>
+            {{/if}}
+        </div>
 
-        {{!-- Botón de Eliminar --}}
-        <button onclick="eliminarProducto('{{this.id}}')" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 0.9rem;">
+        <button onclick="eliminarProducto('{{this._id}}')" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 0.9rem;">
             ELIMINAR CORTE ❌
         </button>
     </div>
 {{/each}}
 
+<div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin: 30px 0; font-family: sans-serif;">
+    {{#if infoPaginacion.hasPrevPage}}
+        <a href="{{prevLink}}" style="padding: 10px 20px; background-color: #d32f2f; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">◀ Anterior</a>
+    {{else}}
+        <span style="padding: 10px 20px; background-color: #e0e0e0; color: #9e9e9e; border-radius: 5px; cursor: not-allowed; font-weight: bold;">◀ Anterior</span>
+    {{/if}}
+
+    <span style="font-size: 16px; font-weight: bold; color: white;">
+        Página {{infoPaginacion.page}} de {{infoPaginacion.totalPages}}
+    </span>
+
+    {{#if infoPaginacion.hasNextPage}}
+        <a href="{{nextLink}}" style="padding: 10px 20px; background-color: #d32f2f; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Siguiente ▶</a>
+    {{else}}
+        <span style="padding: 10px 20px; background-color: #e0e0e0; color: #9e9e9e; border-radius: 5px; cursor: not-allowed; font-weight: bold;">Siguiente ▶</span>
+    {{/if}}
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
 
-    socket.on('connect', () => {
-        console.log('✅ Conectado al servidor de la carnicería');
-    });
+    // ==========================================
+    // 🛒 GESTIÓN AUTOMÁTICA DEL CARRITO ACTIVO
+    // ==========================================
+    async function obtenerORegistrarCarrito() {
+        let cartId = localStorage.getItem('cartId');
+        
+        // Si no existe, le creamos uno usando tu endpoint POST /api/carts
+        if (!cartId) {
+            try {
+                const response = await fetch('/api/carts', { method: 'POST' });
+                const data = await response.json();
+                if (data.status === "success" && data.cartId) {
+                    localStorage.setItem('cartId', data.cartId);
+                    cartId = data.cartId;
+                    console.log("🛒 Nuevo carrito asignado al navegador ID:", cartId);
+                }
+            } catch (err) {
+                console.error("💥 Error inicializando el carrito:", err);
+            }
+        }
+        return cartId;
+    }
 
-    // 1. FUNCIÓN PARA VENDER MERCADERÍA
-    async function venderProducto(id) {
-        console.log("🚀 BOTÓN APRETADO! Intentando vender producto ID:", id);
+    // Inicializamos el ID apenas carga la página
+    obtenerORegistrarCarrito();
+
+    async function agregarAlCarrito(productoId) {
+        const cartId = await obtenerORegistrarCarrito();
+        if (!cartId) return alert("No se pudo iniciar un carrito de compras.");
+
         try {
-            const response = await fetch(`/api/stock/vender`, {
+            // Conectamos directo con tu endpoint POST /api/carts/:cid/products/:pid
+            const response = await fetch(`/api/carts/${cartId}/products/${productoId}`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                alert("🥩 ¡Corte agregado al carrito con éxito!");
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (error) {
+            console.error("Error al añadir producto:", error);
+            alert("No se pudo conectar con la API del carrito");
+        }
+    }
+
+    function irAlCarrito() {
+        const cartId = localStorage.getItem('cartId');
+        if (!cartId) return alert("Tu carrito está vacío todavía.");
+        // Redirecciona a la vista exclusiva usando la ruta que creaste en views.routes.js
+        window.location.href = `/carts/${cartId}`;
+    }
+
+    // ==========================================
+    // 📢 WEBSOCKETS Y VENTA DIRECTA (MANTENIDOS)
+    // ==========================================
+    async function venderProducto(id) {
+        try {
+            await fetch(`/api/stock/vender`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: id, cantidad: 1 })
             });
-            
-            console.log("📡 Estado de la respuesta del servidor:", response.status);
-            
-            if (response.ok) {
-                console.log("✅ Venta procesada en el servidor");
-            } else {
-                console.error("❌ Error en la respuesta del servidor");
-            }
-        } catch (error) {
-            console.error("💥 Error en el fetch de venta:", error);
-        }
+        } catch (error) { console.error(error); }
     }
 
-    // 2. FUNCIÓN PARA ELIMINAR UN CORTE POR COMPLETO
     async function eliminarProducto(id) {
-        if (!confirm("¿Estás seguro de que querés borrar este corte del sistema?")) return;
-
-        try {
-            const response = await fetch(`/api/stock/eliminar/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                console.log("Petición de eliminación enviada al backend");
-            } else {
-                console.error("Error al eliminar");
-            }
-        } catch (error) {
-            console.error("Error en el fetch de eliminación:", error);
-        }
+        if (!confirm("¿Estás seguro?")) return;
+        try { await fetch(`/api/stock/eliminar/${id}`, { method: 'DELETE' }); } catch (error) { console.error(error); }
     }
 
-    // ==========================================
-    // 📢 ESCUCHAS DE SOCKET.IO (TIEMPO REAL)
-    // ==========================================
     socket.on('actualizar-lista', (data) => {
-        console.log('📢 Socket recibió cambio de stock:', data);
-
         const balanceElement = document.getElementById('total-balance');
         if (balanceElement) balanceElement.innerText = data.nuevoBalance;
 
@@ -133,9 +190,7 @@
 
         const avisoElement = document.getElementById(`aviso-${data.id}`);
         if (avisoElement) {
-            avisoElement.innerHTML = data.nuevoStock < 5 
-                ? '<span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span>' 
-                : '';
+            avisoElement.innerHTML = data.nuevoStock < 5 ? '<span style="color: #ff4d4d; font-weight: bold;"> ⚠️ ¡PEDIR MÁS!</span>' : '';
         }
     });
 
